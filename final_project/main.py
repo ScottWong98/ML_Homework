@@ -1,31 +1,16 @@
 import torch
 import torch.nn as nn
 from dataset import ImageDataset
+from model import CNNModel
 from torch import Tensor
 from torch.utils.data.dataloader import DataLoader
 
 
-class LRModel(nn.Module):
-    def __init__(self, in_features: int, out_features: int) -> None:
-        super().__init__()
-        self.linear = nn.Linear(in_features, out_features)
-
-    def forward(self, x):
-        x = self.linear(x)
-        return nn.Sigmoid()(x)
-
-
 class Trainer:
-    def __init__(
-        self,
-        in_features: int = 960,
-        out_features: int = 20,
-        epoch: int = 100,
-        alpha: float = 1e-3,
-    ) -> None:
+    def __init__(self, target_dim: int, epoch: int = 100, alpha: float = 1e-3) -> None:
         self.epoch = epoch
         self.loss_func = nn.CrossEntropyLoss()
-        self.model = LRModel(in_features, out_features)
+        self.model = CNNModel(target_dim)
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=alpha)
 
     def run(self, train_dataloader: DataLoader, test_dataloader: DataLoader):
@@ -35,8 +20,6 @@ class Trainer:
             for features, labels in train_dataloader:
                 loss = self._train(features, labels)
                 total_loss += loss
-                if idx % 50 == 0:
-                    print(f"[{idx} / {len(train_dataloader)}]   ", f"loss: {loss}")
                 idx += 1
             acc = self._test(test_dataloader)
             print(
@@ -64,17 +47,23 @@ class Trainer:
         return total_acc / len(test_dataloader)
 
 
-def main(image_dir):
-    alpha = 1e-2
-    epoch = 1000
+def main(image_dir: str, task: str = "face"):
+    assert task in ["face", "emotion"], f"please input valid task name"
+    target_dim = {"face": 20, "emotion": 4}
+    if task == "emotion":
+        alpha = 1e-4
+        epoch = 1000
+    else:
+        alpha = 1e-2
+        epoch = 500
     image_dataset = ImageDataset(image_dir)
-    train_dataloader, test_dataloader = image_dataset.load_data()
+    train_dataloader, test_dataloader = image_dataset.load_data(target=task)
     print(f">>> Successfully load data...")
-    trainer = Trainer(epoch=epoch, alpha=alpha, in_features=960, out_features=20)
+    trainer = Trainer(target_dim=target_dim[task], epoch=epoch, alpha=alpha)
     print(f">>> Start to train model...")
     trainer.run(train_dataloader, test_dataloader)
 
 
 if __name__ == "__main__":
     image_dir = "/home/scott/Downloads/faces_4"
-    main(image_dir)
+    main(image_dir, task="face")
